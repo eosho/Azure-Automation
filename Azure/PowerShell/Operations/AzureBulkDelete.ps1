@@ -1,92 +1,94 @@
-$VerbosePerference = "SilentlyContinue"
-
 $SelectSubscription = Get-AzureRmSubscription | Out-GridView -Title "Select a Subscription" -OutputMode Single
 
 Set-AzureRmContext -Subscription $SelectSubscription
 
-$SelectRG = Get-AzureRmResourceGroup | Out-GridView -Title "Select Resource Group" -OutputMode Single
+$SelectRG = Get-AzureRmResourceGroup  | Out-GridView -Title "Select Resource Group" -OutputMode Single
 
-$ResourceSelection = Get-AzureRmResource -ResourceGroupName $SelectRG.ResourceGroupName | Out-GridView -Title "Select Resources to Remove" -OutputMode Multiple
+$ResourceSelection =  Get-AzureRmResource -ResourceGroupName $SelectRG.ResourceGroupName  | Out-GridView -Title "Select Resources to Remove" -OutputMode Multiple
 
-$ResourceSelection = $ResourceSelection | Out-GridView -Title "Re-Select Resources to Remove" -OutputMode Multiple
+#$ResourceSelection =  $ResourceSelection | Out-GridView -Title "Re-Select Resources to Remove" -OutputMode Multiple
 
 If ($ResourceSelection.Count -eq 0) {
-  Break
+    Break
 }
 
 Function BulkDeleteResource {
-    [CmdletBinding()]
+[CmdletBinding()]
 
-Param (
+Param(
     [Parameter(Mandatory=$True)]
-    [Object[]]$ResourcesToRemove,
+    [object[]]$ResourcesToRemove,
     [Parameter(Mandatory=$False)]
     [switch]$Delete = $False
-  )
+    )
 
 BEGIN {
     $AzureResourceTypes = @(
         "Microsoft.Compute/virtualMachines"
         "Microsoft.Compute/virtualMachines/extensions"
-        "Microsoft.Compute/availabiliySets"
+        "Microsoft.Compute/availabilitySets"
         "Microsoft.Network/networkInterfaces"
-        "Microsoft.Network/privateIPAddresses"
         "Microsoft.Network/publicIPAddresses"
+        "Microsoft.Network/privateIPAddresses"
         "Microsoft.Network/networkSecurityGroups"
         "Microsoft.Compute/disks"
         "Microsoft.Storage/storageAccounts"
         "Microsoft.Network/virtualNetworks"
     )
-
+    
     $VerbosePreference = "continue"
 }
 
 PROCESS {
     foreach ($AzureResourceType in $AzureResourceTypes) {
-        Write-Output "Getting resource type $($AzureResourceType)"
-    
-        $ResourcesToRemove | Where-Object { $_.ResourceType -eq $AzureResourceType } |
+    Write-Verbose "Processing Resource Type $($AzureResourceType)"
+
+    $ResourcesToRemove |
+        Where-Object { $_.Resourcetype -eq $AzureResourceType } |
         ForEach-Object {
-            Write-Output "Deleting $($_.Name)"
+            Write-Verbose "Deleting $($_.Name)"
             If ($Delete -eq $True) {
-                $_ | Remove-AzureRmResource -Force
-            }
+                $_ | Remove-AzureRmResource -Force 
+            } 
             else {
-                $_ | Remove-AzureRmResource -Force -WhatIf
-            }      
+                $_ | Remove-AzureRmResource -Force -WhatIf 
+            }
         }
-  
-        $ResourcesToRemove = $ResorucesToRemove | Where-Object { $_.ResoueceType -ne $AzureResourceType }
+
+        $ResourcesToRemove = $ResourcesToRemove | Where-Object { $_.Resourcetype -ne $AzureResourceType }
     }
 
-    if ($ResourcesToRemove.Count -gt 0) {
-        Write-Output "Processing the remaining resource types"
+    If ($ResourcesToRemove.Count -gt 0) {
+        Write-Verbose "Processing Resource Type OTHER"
         $ResourcesToRemove | 
-        ForEach-Object {
-            Write-Output "Deleting $($_.Name)"
-
-            if ($Delete -eq $True) {
-                $_ | Remove-AzureRmResource -Force
+            ForEach-Object {
+            Write-Verbose "Deleting $($_.Name)"
+    
+            If ($Delete -eq $True) {
+                $_ | Remove-AzureRmResource -Force 
             }
-            else {
-                $_ | Remove-AzureRmResource -Force -WhatIf
+            Else {
+                $_ | Remove-AzureRmResource -Force -WhatIf 
             }
         }
-
+    
         $ResourcesToRemove = $null
+    
         }
+
     } #End PROCESS
 
 } #End BulkDeleteResource
 
-Write-Host "Performing Remove-AzureRmResource -WhatIf on all selected resources to incite fear" - ForegroundColor Red
+
+Write-Host "Performing Remove-AzureRmResource -WhatIF on all selected resouces to incite fear" -ForegroundColor Red
 Start-Sleep -s 10
 
 BulkDeleteResource $ResourceSelection
 
-Write-Host "`nType ""Delete"" to Remove all resources, or Ctlr-C to Exit Now" -ForegroundColor Green
+Write-Host "`nType ""Delete"" to Remove Resources, or Ctrl-C to Exit" -ForegroundColor Green
 $HostInput = $Null
-$HostInput = Read-Host "Hmmm...Final Answer? (Y or N)"
-if ($HostInput = "Y") {
+$HostInput = Read-Host "Final Answer" 
+If ($HostInput = "Delete" ) {
     BulkDeleteResource $ResourceSelection -Delete
 }
