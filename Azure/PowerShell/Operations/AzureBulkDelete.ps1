@@ -1,3 +1,16 @@
+# Script shows a GUI for deleting all Resources in a Resource Group
+
+# Login to Azure and check for success
+$Login = Login-AzureRmAccount
+
+if ($Login) {
+    Write-Host "Connected to Azure...`n"
+}
+else {
+    Write-Host "Error... failed to connect to Azure 'n"
+    Exit 1
+}
+
 $SelectSubscription = Get-AzureRmSubscription | Out-GridView -Title "Select a Subscription" -OutputMode Single
 
 Set-AzureRmContext -Subscription $SelectSubscription
@@ -9,6 +22,7 @@ $ResourceSelection =  Get-AzureRmResource -ResourceGroupName $SelectRG.ResourceG
 #$ResourceSelection =  $ResourceSelection | Out-GridView -Title "Re-Select Resources to Remove" -OutputMode Multiple
 
 If ($ResourceSelection.Count -eq 0) {
+    Write-Host "Resource group $($SelectRG.ResourceGroupName) is empty... Exiting"
     Break
 }
 
@@ -80,15 +94,28 @@ PROCESS {
 
 } #End BulkDeleteResource
 
-
+# Dry run to scare folks
 Write-Host "Performing Remove-AzureRmResource -WhatIF on all selected resouces to incite fear" -ForegroundColor Red
 Start-Sleep -s 10
 
 BulkDeleteResource $ResourceSelection
 
+# Confirm deletion of all resources
 Write-Host "`nType ""Delete"" to Remove Resources, or Ctrl-C to Exit" -ForegroundColor Green
 $HostInput = $Null
 $HostInput = Read-Host "Final Answer" 
-If ($HostInput = "Delete" ) {
+If ($HostInput = "Delete") {
     BulkDeleteResource $ResourceSelection -Delete
+}
+
+$DeleteRG = $Null
+$DeleteRG = Read-Host "Confirm you want to delete the Resource Group (Y or N)"
+if ($DeleteRG = "Y") {
+    # Delete Resource Group once all resources have been deleted
+    Write-Host "`nDeleting Resource group $($SelectRG.ResourceGroupName)" -ForegroundColor Green
+    $ResourceSelection =  Remove-AzureRmResourceGroup -Name $SelectRG.ResourceGroupName -Force
+    Write-Host "Done"
+}
+else {
+    Write-Host "Resource Group not deleted"
 }
