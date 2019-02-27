@@ -23,6 +23,19 @@ param(
 # Clear screen
 Clear-Host
 
+# login to Azure
+Write-Host "`nChecking Azure login..."
+try {
+    Get-AzContext
+}
+catch {
+    if ($_ -like "*Connect-AzAccout to login*")
+{
+    Write-Host "`nYou are not logged in to Azure. I will prompt you now..."
+    Connect-AzAccount
+    }
+}
+
 $ProjectCsv = @()
 $ProjectCsv = Import-Csv -Path $filepath
 
