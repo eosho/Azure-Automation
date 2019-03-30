@@ -58,12 +58,6 @@
                 "description": "Resource group for existing VNET"
             }
         },
-        "networkSecurityGroupName": {
-            "type": "String",
-            "metadata": {
-                "description": "Name of network security group per app tier. Eg: EPRS-APP-NSG"
-            }
-        },
         "numberOfInstances": {
             "defaultValue": 1,
             "type": "Int",
