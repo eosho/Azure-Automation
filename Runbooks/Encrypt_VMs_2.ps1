@@ -86,9 +86,10 @@ else {
     Write-Output "Key has already been created....continuing"
 }
 
-$diskEncryptionKeyVaultUrl = $checkkv.VaultUri;
-$keyVaultResourceId = $checkKV.ResourceId;
-$keyEncryptionKeyUrl = $checkkey.Key.kid;
+$KeyVault = (Get-AzKeyVault -VaultName $kvname -ResourceGroupName $kvRGName)
+$diskEncryptionKeyVaultUrl = $KeyVault.VaultUri
+$KeyVaultResourceId = $KeyVault.ResourceId
+$keyEncryptionKeyUrl = (Get-AzKeyVaultKey -VaultName $kvname -Name myKey).Key.kid
 
 Function EncryptVM {
     if ($OsType -eq "Windows") {
@@ -104,7 +105,8 @@ Function EncryptVM {
                         -DiskEncryptionKeyVaultUrl $diskEncryptionKeyVaultUrl `
                         -DiskEncryptionKeyVaultId $keyVaultResourceId `
                         -KeyEncryptionKeyUrl $keyEncryptionKeyUrl `
-                        -KeyEncryptionKeyVaultId $keyVaultResourceId -WhatIf
+                        -KeyEncryptionKeyVaultId $keyVaultResourceId `
+                        -VolumeType All
     }
     else {
         Write-Output "Add code for Linux later"
