@@ -51,7 +51,7 @@ Function RegisterResourceProvider {
 
     if ($check.RegistrationState -ne "Registered") {
         Write-Output "$ResourceProviderNamespace has not been enabled...enabling now"
-        Get-AzResourceProvider -ProviderNamespace "$ResourceProviderNamespace"
+        Register-AzResourceProvider -ProviderNamespace "$ResourceProviderNamespace"
     }
     else {
         Write-Output "$ResourceProviderNamespace has already been registered"
