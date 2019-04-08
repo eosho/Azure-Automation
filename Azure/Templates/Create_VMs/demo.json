@@ -8,10 +8,21 @@
                 "description": "Admin username"
             }
         },
-        "adminPassword": {
-            "type": "SecureString",
+        "adminPasswordOrSSHKey": {
+            "type": "string",
             "metadata": {
-                "description": "Admin password"
+                "description": "Admin password or SSH key data"
+            }
+        },
+        "authenticationType": {
+            "type": "string",
+            "defaultValue": "password",
+            "allowedValues": [
+              "password",
+              "sshPublicKey"
+            ],
+            "metadata": {
+              "description": "Authentication type"
             }
         },
         "vmNamePrefix": {
@@ -92,8 +103,8 @@
     },
     "variables": {
         "storageAccountType": "Standard_LRS",
-        "addressPrefix": "",
-        "storageAccountName": "[concat('new', uniqueString(resourceGroup().name), 'storg')]",
+        "addressPrefix": "10.0.0.0/16",
+        "storageAccountName": "[concat('storg', uniqueString(resourceGroup().name), 'acct')]",
         "subnetRef": "[resourceId(parameters('virtualNetworkResourceGroup'),'Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]",
         "windowsImage": {
             "publisher": "MicrosoftWindowsServer",
@@ -106,6 +117,22 @@
             "offer": "UbuntuServer",
             "sku": "16.04.0-LTS",
             "version": "latest"
+        },
+        "domainJoinOptions": 3,
+        "windowsConfiguration": {
+            "provisionVmAgent": true
+        },
+        "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "provisionVmAgent": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+                  "keyData": "[parameters('adminPasswordOrSSHKey')]"
+                }
+              ]
+            }
         }
     },
     "resources": [
@@ -131,7 +158,9 @@
                 "subnets": [
                     {
                         "name": "[parameters('subnetName')]",
-                        "properties": {}
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24"
+                        }
                     }
                 ]
             },
@@ -139,7 +168,7 @@
         },
         {
             "type": "Microsoft.Network/networkInterfaces",
-            "name": "[concat(parameters('vmNamePrefix'), copyindex(), '-nic')]",
+            "name": "[concat(parameters('vmNamePrefix'), copyIndex(), '-nic')]",
             "apiVersion": "2018-04-01",
             "location": "[parameters('location')]",
             "copy": {
@@ -165,8 +194,8 @@
         },
         {
             "type": "Microsoft.Compute/virtualMachines",
-            "name": "[concat(parameters('vmNamePrefix'), copyindex())]",
-            "apiVersion": "2017-03-30",
+            "name": "[concat(parameters('vmNamePrefix'), copyIndex())]",
+            "apiVersion": "2018-10-01",
             "location": "[parameters('location')]",
             "copy": {
                 "name": "virtualMachineLoop",
@@ -179,7 +208,9 @@
                 "osProfile": {
                     "computerName": "[concat(parameters('vmNamePrefix'), copyIndex())]",
                     "adminUsername": "[parameters('adminUsername')]",
-                    "adminPassword": "[parameters('adminPassword')]"
+                    "adminPassword": "[parameters('adminPasswordOrSSHKey')]",
+                    "linuxConfiguration": "[if(equals(parameters('adminPasswordOrSSHKey'), 'password'), json('null'), variables('linuxConfiguration'))]",
+                    "windowsConfiguration": "[if(equals(parameters('adminPasswordOrSSHKey'), 'sshPublicKey'), json('null'), variables('windowsConfiguration'))]"
                 },
                 "storageProfile": {
                     "imageReference": "[if(equals(parameters('osType'), 'Windows'), variables('windowsImage'), variables('linuxImage'))]",
@@ -190,7 +221,16 @@
                         "managedDisk": {
                             "storageAccountType": "[parameters('storageAccountType')]"
                         }
-                    }
+                    },
+                    "dataDisks":[
+                        {
+                            "name": "[concat(parameters('vmNamePrefix'), copyIndex(), '-dataDisk1')]",
+                            "caching": "None",
+                            "createOption":"Empty",
+                            "diskSizeGB": 100,
+                            "lun": 0
+                        }
+                    ]
                 },
                 "networkProfile": {
                     "networkInterfaces": [
