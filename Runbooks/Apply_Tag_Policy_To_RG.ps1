@@ -2,44 +2,68 @@
 param(
     [Parameter(Mandatory = $true)]
     [String]$ResourceGroupName,
+
     [Parameter(Mandatory = $true)]
     [String]$EnvironmentName,
+
     [Parameter(Mandatory = $true)]
-    [String]$projectName
+    [String]$projectName,
+
+    [Parameter(Mandatory = $true)]
+    [String]$Region
 )
 
-$AzureAutomationAccount = "poc-automation-acct"
-$AzureAutomationAccountRG = "POC-RESOURCES-RG"
+$connectionName = "AzureRunAsConnection"
+try
+{
+    # Get the connection "AzureRunAsConnection "
+    $servicePrincipalConnection=Get-AutomationConnection -Name $connectionName         
 
-try {
-    $servicePrincipalConnection = Get-AutomationConnection -Name "AzureRunAsConnection"
-    Write-Output "Logging in to Azure...`n"
-    Add-AzureRMAccount `
+    "Logging in to Azure..."
+    Connect-AzAccount `
         -ServicePrincipal `
         -TenantId $servicePrincipalConnection.TenantId `
         -ApplicationId $servicePrincipalConnection.ApplicationId `
-        -CertificateThumbprint $servicePrincipalConnection.CertificateThumbprint `
-        -EnvironmentName AzureCloud
+        -CertificateThumbprint $servicePrincipalConnection.CertificateThumbprint 
 }
 catch {
-    if (!$servicePrincipalConnection) {
-        $ErrorMessage = "Connection AzureRunAsConnection not found."
+    if (!$servicePrincipalConnection)
+    {
+        $ErrorMessage = "Connection $connectionName not found."
         throw $ErrorMessage
-    }
-    else {
+    } else{
         Write-Error -Message $_.Exception
         throw $_.Exception
     }
 }
 
-$RGExists = (Get-AzureRmResourceGroup -Name $ResourceGroupName)
+#Connect-AzAccount -EnvironmentName AzureUSGovernment
 
-if (!$RGExists) {
-    Write-Host "`nResource group '$ResourceGroupName' does not exist..."
-    Exit 1
+# Tag values go here
+$Tags = @{
+    "ProjectName" = "$projectName"
+    "Environment" = "$EnvironmentName"
 }
-else {
-    Write-Host "`nFound '$ResourceGroupName'... continuing"
+
+try {
+    # Create Resource Group
+    Write-Host "`nChecking for presence of RG '$ResourceGroupName'"
+    $RGExists = (Get-AzResourceGroup -Name $ResourceGroupName)
+
+    if (!$RGExists) {
+        Write-Host "`nResource group '$ResourceGroupName' does not exist..."
+        Write-Host "Creating resource group '$ResourceGroupName' in location '$Region'"
+        New-AzResourceGroup -Name $ResourceGroupName -Location $Region
+
+        Write-Host "`nTagging resource group '$ResourceGroupName'"
+        Set-AzResourceGroup -Name $ResourceGroupName -Tag $Tags
+    }
+    else {
+        Write-Host "`nUsing existing resource group '$ResourceGroupName'"
+    }
+}
+catch {
+    Write-Output "Error happened deploying resource group"
 }
 
 # Get account
@@ -48,14 +72,14 @@ else {
 # Set the Policy Parameter
 $policyParam = @"
     {
-        "EnvironmentValue": {
+        "Environment": {
             "type": "String",
             "metadata": {
                 "displayName": "required value for Environment Name tag"
             },
   
         },
-        "ProjectNameValue": {
+        "ProjectName": {
             "type": "String",
             "metadata": {
                 "displayName": "required value for project Name tag"
@@ -66,16 +90,18 @@ $policyParam = @"
 "@
 
 # Create the Policy Definition (Subscription scope)
+# policyDefinitions/1e30110a-5ceb-460c-a204-c1c3969c6d62 - enforces tags
+# policyDefinitions/2a0e14a6-b0a6-4fab-991a-187a4f81c498 - denies tags
 $definition = @"
     [
-	{
+    {
 		"policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/2a0e14a6-b0a6-4fab-991a-187a4f81c498",
 		"parameters": {
 			"tagName": {
 				"value": "Environment"
 			},
 			"tagValue": {
-				"value": "[parameters('EnvironmentValue')]"
+				"value": "[parameters('Environment')]"
 			}
 		}
 	},
@@ -86,37 +112,35 @@ $definition = @"
 				"value": "projectName"
 			},
 			"tagValue": {
-				"value": "[parameters('projectNameValue')]"
+				"value": "[parameters('projectName')]"
 			}
 		}
-	}
+	},
 ]
 "@
 
-# Tag values go here
-$params = @{
-    "projectNameValue" = "$projectName"
-    "EnvironmentValue" = "$EnvironmentName"
-}
-
 # Set the scope to a resource group; may also be a resource, subscription, or management group
-$scope = Get-AzureRmResourceGroup -Name $ResourceGroupName
+$scope = Get-AzResourceGroup -Name $ResourceGroupName
 
 # Create policy per RG
-$policyset = New-AzureRmPolicySetDefinition -Name "$ResourceGroupName-billing-tags" `
+$policyset = New-AzPolicySetDefinition -Name "$ResourceGroupName-billing-tags" `
     -DisplayName "Billing Tags Policy Initiative" `
     -Description "Specify Environment and projectName tags" `
     -PolicyDefinition $definition -Parameter $policyParam 
 
 # Assign policy assignment to RG
-$assignment = New-AzureRmPolicyAssignment -PolicySetDefinition $policyset `
-    -Name "$ResourceGroupName - Enforce Resource tag assignment" `
+$assignment = New-AzPolicyAssignment -PolicySetDefinition $policyset `
+    -Name "$ResourceGroupName - TAG Enforcement" `
     -Scope $scope.ResourceId `
-    -PolicyParameterObject $params
+    -PolicyParameterObject $Tags
+
+$id = $assignment.ResourceId
+Write-Output "Policy ID -  $id"
 
 if ($null -eq $assignment) {
-    Write-Output "Failed to deploy policy..."
+    Write-Output "`nFailed to deploy policy..."
 }
 else {
-    Write-Output "policy definitiion was successful..."
+    Write-Output "`npolicy definitiion was successful..."
+    Get-AzPolicyAssignment -Id $id
 }
