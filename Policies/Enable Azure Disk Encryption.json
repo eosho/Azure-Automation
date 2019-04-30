@@ -4,6 +4,18 @@
       {
         "field": "type",
         "equals": "Microsoft.Compute/virtualMachines"
+      },
+      {
+        "allOf": [
+          {
+            "field": "Microsoft.Compute/imagePublisher",
+            "equals": "MicrosoftWindowsServer"
+          },
+          {
+            "field": "Microsoft.Compute/imageOffer",
+            "equals": "WindowsServer"
+          }
+        ]
       }
     ]
   },
