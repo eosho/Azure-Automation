@@ -4,12 +4,20 @@
     "if": {
       "not": {
         "field": "location",
-        "equals": "global"
+        "equals": "[parameters('allowedLocations')]"
       }
     },
     "then": {
       "effect": "deny"
     }
   },
-  "parameters": {}
+  "parameters": {
+    "allowedLocations": {
+      "type": "String",
+      "metadata": {
+        "displayName": "allowedLocations",
+        "description": null
+      }
+    }
+  }
 }
