@@ -1,0 +1,21 @@
+{
+    "type": "Microsoft.Authorization/policyDefinitions",
+    "name": "Deny All Deployments",
+    "properties": {
+        "displayName": "Deny All Deployments due to cost",
+        "description": "This policy denys all deployments in AGboola RG after cost of 50 dollars.",
+        "policyRule": {
+        "if": {
+            "allOf": [
+                {
+                    "field": "location",
+                    "equals": "global"
+                }
+            ]
+        },
+        "then": {
+            "effect": "deny"
+            }
+        }
+    }
+}
